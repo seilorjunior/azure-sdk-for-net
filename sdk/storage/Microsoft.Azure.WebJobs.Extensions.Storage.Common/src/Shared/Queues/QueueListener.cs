@@ -25,7 +25,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Azure.WebJobs.Extensions.Storage.Common.Listeners
 {
-    internal sealed partial class QueueListener : IListener, ITaskSeriesCommand, INotificationCommand, IScaleMonitor<QueueTriggerMetrics>
+    internal sealed partial class QueueListener : IListener, ITaskSeriesCommand, INotificationCommand, ITargetScaleMonitor<QueueTriggerMetrics>
     {
         private const int NumberOfSamplesToConsider = 5;
 
@@ -46,12 +46,16 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Common.Listeners
         private readonly string _functionId;
         private readonly ScaleMonitorDescriptor _scaleMonitorDescriptor;
         private readonly CancellationTokenSource _shutdownCancellationTokenSource;
+        private readonly ConcurrencyManager _concurrencyManager;
+        private readonly IDynamicTargetValueProvider _dynamicTargetValueProvider;
+
+        private readonly Lazy<bool> _targetBasedScalingEnabled;
+        private readonly Lazy<int> _staticTargetValue;
 
         private bool? _queueExists;
         private bool _foundMessageSinceLastDelay;
         private bool _disposed;
         private TaskCompletionSource<object> _stopWaitingTaskSource;
-        private ConcurrencyManager _concurrencyManager;
         private string _details;
 
         // for mock testing only
@@ -68,7 +72,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Common.Listeners
             QueuesOptions queueOptions,
             QueueProcessor queueProcessor,
             FunctionDescriptor functionDescriptor,
-            ConcurrencyManager concurrencyManager = null,
+            ConcurrencyManager concurrencyManager,
+            IDynamicTargetValueProvider dynamicTargetValueProvider,
             string functionId = null,
             TimeSpan? maxPollingInterval = null)
         {
@@ -134,6 +139,24 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Common.Listeners
             _shutdownCancellationTokenSource = new CancellationTokenSource();
 
             _concurrencyManager = concurrencyManager;
+            _targetBasedScalingEnabled = new Lazy<bool>(() =>
+            {
+                ;
+                return Environment.GetEnvironmentVariable(Constants.TargetBasedScalingEnabled) == "1";
+            });
+            _staticTargetValue = new Lazy<int>(() =>
+            {
+                if (_queueOptions.BatchSize > 0)
+                {
+                    return _queueOptions.BatchSize;
+                }
+                if (int.TryParse(Environment.GetEnvironmentVariable(Constants.TargetServiceBusMetric), out int parsedValue))
+                {
+                    return parsedValue;
+                }
+                return Constants.DefaultTargetServiceBusMetric;
+            });
+            _dynamicTargetValueProvider = dynamicTargetValueProvider;
         }
 
         // for testing
@@ -508,20 +531,42 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Common.Listeners
 
         ScaleStatus IScaleMonitor.GetScaleStatus(ScaleStatusContext context)
         {
-            return GetScaleStatusCore(context.WorkerCount, context.Metrics?.Cast<QueueTriggerMetrics>().ToArray());
+            throw new NotImplementedException();
         }
 
-        public ScaleStatus GetScaleStatus(ScaleStatusContext<QueueTriggerMetrics> context)
+        public async Task<int> GetScaleVoteAsync(ScaleStatusContext<QueueTriggerMetrics> context)
         {
-            return GetScaleStatusCore(context.WorkerCount, context.Metrics?.ToArray());
+            return await GetScaleVoteCoreAsync(context.WorkerCount, context.Metrics?.ToArray()).ConfigureAwait(false);
+        }
+        public async Task<int> GetScaleVoteAsync(ScaleStatusContext context)
+        {
+            return await GetScaleVoteCoreAsync(context.WorkerCount, context.Metrics?.Cast<QueueTriggerMetrics>().ToArray()).ConfigureAwait(false);
         }
 
-        private ScaleStatus GetScaleStatusCore(int workerCount, QueueTriggerMetrics[] metrics)
+        private async Task<int> GetScaleVoteCoreAsync(int workerCount, QueueTriggerMetrics[] metrics)
         {
-            ScaleStatus status = new ScaleStatus
+            if (_targetBasedScalingEnabled.Value)
             {
-                Vote = ScaleVote.None
-            };
+                int targetValue = await _dynamicTargetValueProvider.GetDynamicTargetValue(_functionId, _concurrencyManager.Enabled).ConfigureAwait(false);
+                if (targetValue <= 0)
+                {
+                    // Fallback to default value
+                    targetValue = _staticTargetValue.Value;
+                }
+                return GetTargetScaleVote(targetValue, metrics);
+            }
+            else
+            {
+                return GetIncrementalScaleVote(workerCount, metrics);
+            }
+        }
+        private static int GetTargetScaleVote(int targetValue, QueueTriggerMetrics[] metrics)
+        {
+            return (int)Math.Ceiling(metrics.Last().QueueLength / (decimal)targetValue);
+        }
+        private int GetIncrementalScaleVote(int workerCount, QueueTriggerMetrics[] metrics)
+        {
+            int status = 0;
 
             // verify we have enough samples to make a scale decision.
             if (metrics == null || (metrics.Length < NumberOfSamplesToConsider))
@@ -533,7 +578,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Common.Listeners
             long latestQueueLength = metrics.Last().QueueLength;
             if (latestQueueLength > workerCount * 1000)
             {
-                status.Vote = ScaleVote.ScaleOut;
+                status = 1;
                 _logger.LogInformation($"QueueLength ({latestQueueLength}) > workerCount ({workerCount}) * 1,000");
                 _logger.LogInformation($"Length of queue ({_queue.Name}, {latestQueueLength}) is too high relative to the number of instances ({workerCount}).");
                 return status;
@@ -543,7 +588,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Common.Listeners
             bool queueIsIdle = metrics.All(p => p.QueueLength == 0);
             if (queueIsIdle)
             {
-                status.Vote = ScaleVote.ScaleIn;
+                status = -1;
                 _logger.LogInformation($"Queue '{_queue.Name}' is idle");
                 return status;
             }
@@ -559,7 +604,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Common.Listeners
                     (prev, next) => prev.QueueLength < next.QueueLength);
                 if (queueLengthIncreasing)
                 {
-                    status.Vote = ScaleVote.ScaleOut;
+                    status = 1;
                     _logger.LogInformation($"Queue length is increasing for '{_queue.Name}'");
                     return status;
                 }
@@ -574,7 +619,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Common.Listeners
                         (prev, next) => prev.QueueTime <= next.QueueTime);
                 if (queueTimeIncreasing)
                 {
-                    status.Vote = ScaleVote.ScaleOut;
+                    status = 1;
                     _logger.LogInformation($"Queue time is increasing for '{_queue.Name}'");
                     return status;
                 }
@@ -587,7 +632,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Common.Listeners
                     (prev, next) => prev.QueueLength > next.QueueLength);
             if (queueLengthDecreasing)
             {
-                status.Vote = ScaleVote.ScaleIn;
+                status = -1;
                 _logger.LogInformation($"Queue length is decreasing for '{_queue.Name}'");
                 return status;
             }
@@ -598,7 +643,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Common.Listeners
                 (prev, next) => prev.QueueTime > next.QueueTime);
             if (queueTimeDecreasing)
             {
-                status.Vote = ScaleVote.ScaleIn;
+                status = -1;
                 _logger.LogInformation($"Queue time is decreasing for '{_queue.Name}'");
                 return status;
             }
@@ -607,7 +652,6 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Common.Listeners
 
             return status;
         }
-
         private static bool IsTrueForLastN(IList<QueueTriggerMetrics> samples, int count, Func<QueueTriggerMetrics, QueueTriggerMetrics, bool> predicate)
         {
             Debug.Assert(count > 1, "count must be greater than 1.");

@@ -33,6 +33,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs.Triggers
         private readonly ILoggerFactory _loggerFactory;
         private readonly ILogger _logger;
         private readonly ConcurrencyManager _concurrencyManager;
+        private readonly IDynamicTargetValueProvider _dynamicTargetValueProvider;
 
         public BlobTriggerAttributeBindingProvider(
             INameResolver nameResolver,
@@ -46,7 +47,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs.Triggers
             ISharedContextProvider sharedContextProvider,
             IHostSingletonManager singletonManager,
             ILoggerFactory loggerFactory,
-            ConcurrencyManager concurrencyManager)
+            ConcurrencyManager concurrencyManager,
+            IDynamicTargetValueProvider dynamicTargetValueProvider)
         {
             _blobServiceClientProvider = blobServiceClientProvider ?? throw new ArgumentNullException(nameof(blobServiceClientProvider));
             _queueServiceClientProvider = queueServiceClientProvider ?? throw new ArgumentNullException(nameof(queueServiceClientProvider));
@@ -62,6 +64,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs.Triggers
             _nameResolver = nameResolver;
             _loggerFactory = loggerFactory;
             _logger = loggerFactory.CreateLogger<BlobTriggerAttributeBindingProvider>();
+            _dynamicTargetValueProvider = dynamicTargetValueProvider ?? throw new ArgumentNullException(nameof(dynamicTargetValueProvider));
         }
 
         public Task<ITriggerBinding> TryCreateAsync(TriggerBindingProviderContext context)
@@ -95,7 +98,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs.Triggers
             ITriggerBinding binding = new BlobTriggerBinding(parameter, hostBlobServiceClient, hostQueueServiceClient,
                 dataBlobServiceClient, dataQueueServiceClient, path, blobTriggerAttribute.Source,
                 _hostIdProvider, _blobsOptions, _exceptionHandler, _blobWrittenWatcherSetter,
-                _blobTriggerQueueWriterFactory, _sharedContextProvider, _singletonManager, _loggerFactory, _concurrencyManager);
+                _blobTriggerQueueWriterFactory, _sharedContextProvider, _singletonManager, _loggerFactory, _concurrencyManager, _dynamicTargetValueProvider);
 
             return Task.FromResult(binding);
         }

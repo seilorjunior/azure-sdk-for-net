@@ -14,6 +14,7 @@ using Microsoft.Azure.WebJobs.Host.Executors;
 using Microsoft.Azure.WebJobs.Host.Listeners;
 using Microsoft.Azure.WebJobs.Host.Protocols;
 using Microsoft.Azure.WebJobs.Host.Queues;
+using Microsoft.Azure.WebJobs.Host.Scale;
 using Microsoft.Azure.WebJobs.Host.Timers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -35,19 +36,28 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs
         private readonly IWebJobsExceptionHandler _exceptionHandler;
         private readonly SharedQueueWatcher _sharedWatcher;
         private readonly QueueServiceClientProvider _queueServiceClientProvider;
+        private readonly ConcurrencyManager _concurrencyManager;
+        private readonly IDynamicTargetValueProvider _dynamicTargetValueProvider;
 
         public StorageLoadBalancerQueue(
                QueueServiceClientProvider queueServiceClientProvider,
                IOptions<QueuesOptions> queueOptions,
                IWebJobsExceptionHandler exceptionHandler,
                SharedQueueWatcher sharedWatcher,
-               ILoggerFactory loggerFactory)
+               ILoggerFactory loggerFactory,
+               ConcurrencyManager concurrencyManager,
+               IDynamicTargetValueProvider dynamicTargetValueProvider
+               )
         {
             _queueServiceClientProvider = queueServiceClientProvider;
             _queueOptions = queueOptions.Value;
             _exceptionHandler = exceptionHandler;
             _sharedWatcher = sharedWatcher;
             _loggerFactory = loggerFactory;
+
+            _concurrencyManager = concurrencyManager;
+            _dynamicTargetValueProvider = dynamicTargetValueProvider;
+            _concurrencyManager = concurrencyManager;
         }
 
         public IAsyncCollector<T> GetQueueWriter<T>(string queue)
@@ -117,6 +127,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs
                 loggerFactory: _loggerFactory,
                 sharedWatcher: _sharedWatcher,
                 queueOptions: _queueOptions,
+                concurrencyManager: _concurrencyManager,
+                dynamicTargetValueProvider: _dynamicTargetValueProvider,
                 queueProcessor: queueProcessor,
                 functionDescriptor: new FunctionDescriptor { Id = SharedLoadBalancerQueueListenerFunctionId },
                 maxPollingInterval: maxPollingInterval);

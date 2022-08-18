@@ -39,6 +39,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues.Triggers
         private readonly IQueueProcessorFactory _queueProcessorFactory;
         private readonly QueueCausalityManager _queueCausalityManager;
         private readonly ConcurrencyManager _concurrencyManager;
+        private readonly IDynamicTargetValueProvider _dynamicTargetValueProvider;
 
         public QueueTriggerBinding(string parameterName,
             QueueServiceClient queueServiceClient,
@@ -50,7 +51,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues.Triggers
             ILoggerFactory loggerFactory,
             IQueueProcessorFactory queueProcessorFactory,
             QueueCausalityManager queueCausalityManager,
-            ConcurrencyManager concurrencyManager)
+            ConcurrencyManager concurrencyManager,
+            IDynamicTargetValueProvider dynamicTargetValueProvider)
         {
             _queueServiceClient = queueServiceClient ?? throw new ArgumentNullException(nameof(queueServiceClient));
             _queue = queue ?? throw new ArgumentNullException(nameof(queue));
@@ -67,6 +69,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues.Triggers
             _queueProcessorFactory = queueProcessorFactory;
             _converter = CreateConverter(_queue);
             _logger = loggerFactory.CreateLogger<QueueTriggerBinding>();
+            _dynamicTargetValueProvider = dynamicTargetValueProvider ?? throw new ArgumentNullException(nameof(dynamicTargetValueProvider));
         }
 
         public Type TriggerValueType
@@ -140,7 +143,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues.Triggers
             }
 
             var factory = new QueueListenerFactory(_queueServiceClient, _queue, _queueOptions, _exceptionHandler,
-                    _messageEnqueuedWatcherSetter, _loggerFactory, context.Executor, _queueProcessorFactory, _queueCausalityManager, context.Descriptor, _concurrencyManager);
+                    _messageEnqueuedWatcherSetter, _loggerFactory, context.Executor, _queueProcessorFactory,
+                    _queueCausalityManager, context.Descriptor, _concurrencyManager, _dynamicTargetValueProvider);
 
             return factory.CreateAsync(context.CancellationToken);
         }

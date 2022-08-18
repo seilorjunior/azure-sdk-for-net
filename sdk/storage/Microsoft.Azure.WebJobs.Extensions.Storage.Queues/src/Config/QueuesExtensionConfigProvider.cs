@@ -14,6 +14,7 @@ using Microsoft.Azure.WebJobs.Extensions.Storage.Queues.Triggers;
 using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Azure.WebJobs.Host.Bindings;
 using Microsoft.Azure.WebJobs.Host.Config;
+using Microsoft.Azure.WebJobs.Host.Scale;
 using Newtonsoft.Json.Linq;
 
 namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues.Config
@@ -25,14 +26,16 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues.Config
         private readonly QueueServiceClientProvider _queueServiceClientProvider;
         private readonly QueueTriggerAttributeBindingProvider _triggerProvider;
         private readonly QueueCausalityManager _queueCausalityManager;
+        private readonly IDynamicTargetValueProvider _dynamicTargetValueProvider;
 
         public QueuesExtensionConfigProvider(QueueServiceClientProvider queueServiceClientProvider, IContextGetter<IMessageEnqueuedWatcher> contextGetter,
-            QueueTriggerAttributeBindingProvider triggerProvider, QueueCausalityManager queueCausalityManager)
+            QueueTriggerAttributeBindingProvider triggerProvider, QueueCausalityManager queueCausalityManager, IDynamicTargetValueProvider dynamicTargetValueProvider)
         {
             _contextGetter = contextGetter;
             _queueServiceClientProvider = queueServiceClientProvider;
             _triggerProvider = triggerProvider;
             _queueCausalityManager = queueCausalityManager;
+            _dynamicTargetValueProvider = dynamicTargetValueProvider;
         }
 
         public void Initialize(ExtensionConfigContext context)

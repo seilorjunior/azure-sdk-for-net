@@ -40,6 +40,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs.Listeners
         private readonly ITriggeredFunctionExecutor _executor;
         private readonly IHostSingletonManager _singletonManager;
         private readonly ConcurrencyManager _concurrencyManager;
+        private readonly IDynamicTargetValueProvider _dynamicTargetValueProvider;
 
         public BlobListenerFactory(IHostIdProvider hostIdProvider,
             BlobsOptions blobsOptions,
@@ -58,7 +59,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs.Listeners
             BlobTriggerSource triggerKind,
             ITriggeredFunctionExecutor executor,
             IHostSingletonManager singletonManager,
-            ConcurrencyManager concurrencyManager)
+            ConcurrencyManager concurrencyManager,
+            IDynamicTargetValueProvider dynamicTargetValueProvider)
         {
             _hostIdProvider = hostIdProvider ?? throw new ArgumentNullException(nameof(hostIdProvider));
             _blobTriggerQueueWriterFactory = blobTriggerQueueWriterFactory ?? throw new ArgumentNullException(nameof(blobTriggerQueueWriterFactory));
@@ -78,6 +80,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs.Listeners
             _executor = executor ?? throw new ArgumentNullException(nameof(executor));
             _singletonManager = singletonManager ?? throw new ArgumentNullException(nameof(singletonManager));
             _concurrencyManager = concurrencyManager ?? throw new ArgumentNullException(nameof(concurrencyManager));
+            _dynamicTargetValueProvider = dynamicTargetValueProvider ?? throw new ArgumentNullException(nameof(dynamicTargetValueProvider));
         }
 
         public async Task<IListener> CreateAsync(CancellationToken cancellationToken)
@@ -112,7 +115,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs.Listeners
             // notification queue and dispatch to the target job function.
             SharedBlobQueueListener sharedBlobQueueListener = _sharedContextProvider.GetOrCreateInstance<SharedBlobQueueListener>(
                 new SharedBlobQueueListenerFactory(_hostQueueServiceClient, blobTriggerQueueWriter.SharedQueueWatcher, blobTriggerQueueWriter.QueueClient,
-                     _blobsOptions, _exceptionHandler, _loggerFactory, sharedBlobListener?.BlobWritterWatcher, _functionDescriptor, _blobTriggerSource, _concurrencyManager));
+                     _blobsOptions, _exceptionHandler, _loggerFactory, sharedBlobListener?.BlobWritterWatcher, _functionDescriptor, _blobTriggerSource, _concurrencyManager, _dynamicTargetValueProvider));
             var queueListener = new BlobListener(sharedBlobQueueListener, _container, _input, _loggerFactory);
 
             // the client to use for the poison queue

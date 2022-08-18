@@ -76,8 +76,10 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
 
             _mockQueueProcessor = new Mock<QueueProcessor>(MockBehavior.Strict, context);
             var concurrencyManagerMock = new Mock<ConcurrencyManager>(MockBehavior.Strict);
+            var dynamicTargetValueProviderMock = new Mock<IDynamicTargetValueProvider>(MockBehavior.Strict);
 
-            _listener = new QueueListener(_mockQueue.Object, null, _mockTriggerExecutor.Object, _mockExceptionDispatcher.Object, _loggerFactory, null, _queuesOptions, _mockQueueProcessor.Object, new FunctionDescriptor { Id = TestFunctionId }, concurrencyManagerMock.Object);
+            _listener = new QueueListener(_mockQueue.Object, null, _mockTriggerExecutor.Object, _mockExceptionDispatcher.Object, _loggerFactory, null,
+                _queuesOptions, _mockQueueProcessor.Object, new FunctionDescriptor { Id = TestFunctionId }, concurrencyManagerMock.Object, dynamicTargetValueProviderMock.Object);
             _queueMessage = QueuesModelFactory.QueueMessage("TestId", "TestPopReceipt", "TestMessage", 0);
         }
 
@@ -96,7 +98,9 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
             var mockConcurrencyThrottleManager = new Mock<IConcurrencyThrottleManager>(MockBehavior.Strict);
             mockConcurrencyThrottleManager.Setup(p => p.GetStatus()).Returns(() => throttleStatus);
             var concurrencyManager = new ConcurrencyManager(optionsWrapper, _loggerFactory, mockConcurrencyThrottleManager.Object);
-            var localListener = new QueueListener(_mockQueue.Object, null, _mockTriggerExecutor.Object, _mockExceptionDispatcher.Object, _loggerFactory, null, _queuesOptions, _mockQueueProcessor.Object, new FunctionDescriptor { Id = TestFunctionId }, concurrencyManager);
+
+            var dynamicTargetValueProviderMock = new Mock<IDynamicTargetValueProvider>(MockBehavior.Strict);
+            var localListener = new QueueListener(_mockQueue.Object, null, _mockTriggerExecutor.Object, _mockExceptionDispatcher.Object, _loggerFactory, null, _queuesOptions, _mockQueueProcessor.Object, new FunctionDescriptor { Id = TestFunctionId }, concurrencyManager, dynamicTargetValueProviderMock.Object);
 
             int result = localListener.GetMessageReceiveCount();
             Assert.AreEqual(1, result);
@@ -124,8 +128,10 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
             var mockConcurrencyManager = new Mock<ConcurrencyManager>(MockBehavior.Strict);
             var queueProcessorFactory = new DefaultQueueProcessorFactory();
             var queueProcessor = QueueListenerFactory.CreateQueueProcessor(Fixture.Queue, null, _loggerFactory, queueProcessorFactory, queuesOptions, null);
+            var dynamicTargetValueProviderMock = new Mock<IDynamicTargetValueProvider>(MockBehavior.Strict);
+
             QueueListener listener = new QueueListener(Fixture.Queue, null, mockTriggerExecutor.Object, new WebJobsExceptionHandler(null),
-                _loggerFactory, null, queuesOptions, queueProcessor, new FunctionDescriptor { Id = "TestFunction" }, mockConcurrencyManager.Object);
+                _loggerFactory, null, queuesOptions, queueProcessor, new FunctionDescriptor { Id = "TestFunction" }, mockConcurrencyManager.Object, dynamicTargetValueProviderMock.Object);
 
             var metrics = await listener.GetMetricsAsync();
 
@@ -181,16 +187,16 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
                 WorkerCount = 1
             };
 
-            var status = _listener.GetScaleStatus(context);
-            Assert.AreEqual(ScaleVote.None, status.Vote);
+            var status = _listener.GetScaleVoteAsync(context);
+            Assert.AreEqual(ScaleVote.None, status);
 
             // verify the non-generic implementation works properly
-            status = ((IScaleMonitor)_listener).GetScaleStatus(context);
-            Assert.AreEqual(ScaleVote.None, status.Vote);
+            status = ((ITargetScaleMonitor)_listener).GetScaleVoteAsync(context);
+            Assert.AreEqual(ScaleVote.None, status);
         }
 
         [Test]
-        public void GetScaleStatus_MessagesPerWorkerThresholdExceeded_ReturnsVote_ScaleOut()
+        public async void GetScaleStatus_MessagesPerWorkerThresholdExceeded_ReturnsVote_ScaleOut()
         {
             var context = new ScaleStatusContext<QueueTriggerMetrics>
             {
@@ -208,9 +214,9 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
             };
             context.Metrics = queueTriggerMetrics;
 
-            var status = _listener.GetScaleStatus(context);
+            var status = await _listener.GetScaleVoteAsync(context);
 
-            Assert.AreEqual(ScaleVote.ScaleOut, status.Vote);
+            Assert.AreEqual(ScaleVote.ScaleOut, status);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -226,8 +232,9 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
                 WorkerCount = 1,
                 Metrics = queueTriggerMetrics
             };
-            status = ((IScaleMonitor)_listener).GetScaleStatus(context2);
-            Assert.AreEqual(ScaleVote.ScaleOut, status.Vote);
+
+            status = await _listener.GetScaleVoteAsync(context2);
+            Assert.AreEqual(ScaleVote.ScaleOut, status);
         }
 
         [Test]
@@ -248,9 +255,9 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
                 new QueueTriggerMetrics { QueueLength = 150, QueueTime = TimeSpan.FromSeconds(1), Timestamp = timestamp.AddSeconds(15) }
             };
 
-            var status = _listener.GetScaleStatus(context);
+            var status = _listener.GetScaleVoteAsync(context);
 
-            Assert.AreEqual(ScaleVote.ScaleOut, status.Vote);
+            Assert.AreEqual(ScaleVote.ScaleOut, status);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -276,9 +283,9 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
                 new QueueTriggerMetrics { QueueLength = 100, QueueTime = TimeSpan.FromSeconds(6), Timestamp = timestamp.AddSeconds(15) }
             };
 
-            var status = _listener.GetScaleStatus(context);
+            var status = _listener.GetScaleVoteAsync(context);
 
-            Assert.AreEqual(ScaleVote.ScaleOut, status.Vote);
+            Assert.AreEqual(ScaleVote.ScaleOut, status);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -304,9 +311,9 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
                 new QueueTriggerMetrics { QueueLength = 10, QueueTime = TimeSpan.FromMilliseconds(400), Timestamp = timestamp.AddSeconds(15) }
             };
 
-            var status = _listener.GetScaleStatus(context);
+            var status = _listener.GetScaleVoteAsync(context);
 
-            Assert.AreEqual(ScaleVote.ScaleIn, status.Vote);
+            Assert.AreEqual(ScaleVote.ScaleIn, status);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -332,9 +339,9 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
                 new QueueTriggerMetrics { QueueLength = 100, QueueTime = TimeSpan.FromMilliseconds(100), Timestamp = timestamp.AddSeconds(15) }
             };
 
-            var status = _listener.GetScaleStatus(context);
+            var status = _listener.GetScaleVoteAsync(context);
 
-            Assert.AreEqual(ScaleVote.ScaleIn, status.Vote);
+            Assert.AreEqual(ScaleVote.ScaleIn, status);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -360,9 +367,9 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
                 new QueueTriggerMetrics { QueueLength = 1600, QueueTime = TimeSpan.FromSeconds(1), Timestamp = timestamp.AddSeconds(15) }
             };
 
-            var status = _listener.GetScaleStatus(context);
+            var status = _listener.GetScaleVoteAsync(context);
 
-            Assert.AreEqual(ScaleVote.None, status.Vote);
+            Assert.AreEqual(ScaleVote.None, status);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -388,9 +395,9 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
                 new QueueTriggerMetrics { QueueLength = 0, QueueTime = TimeSpan.Zero, Timestamp = timestamp.AddSeconds(15) }
             };
 
-            var status = _listener.GetScaleStatus(context);
+            var status = _listener.GetScaleVoteAsync(context);
 
-            Assert.AreEqual(ScaleVote.ScaleIn, status.Vote);
+            Assert.AreEqual(ScaleVote.ScaleIn, status);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -411,9 +418,9 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
                 new QueueTriggerMetrics { QueueLength = 10, QueueTime = TimeSpan.FromSeconds(1), Timestamp = DateTime.UtcNow }
             };
 
-            var status = _listener.GetScaleStatus(context);
+            var status = _listener.GetScaleVoteAsync(context);
 
-            Assert.AreEqual(ScaleVote.None, status.Vote);
+            Assert.AreEqual(ScaleVote.None, status);
         }
 
         [Test]
@@ -432,9 +439,11 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
             var queueProcessorFactory = new DefaultQueueProcessorFactory();
             var queueProcessor = QueueListenerFactory.CreateQueueProcessor(queue, poisonQueue, NullLoggerFactory.Instance, queueProcessorFactory, queuesOptions, null);
             var mockConcurrencyManager = new Mock<ConcurrencyManager>(MockBehavior.Strict);
+            var mockDynamicTargetValueProvider = new Mock<IDynamicTargetValueProvider>(MockBehavior.Strict);
 
             QueueListener listener = new QueueListener(queue, poisonQueue, mockTriggerExecutor.Object, new WebJobsExceptionHandler(null),
-                NullLoggerFactory.Instance, null, queuesOptions, queueProcessor, new FunctionDescriptor { Id = "TestFunction" }, mockConcurrencyManager.Object);
+                NullLoggerFactory.Instance, null, queuesOptions, queueProcessor, new FunctionDescriptor { Id = "TestFunction" },
+                mockConcurrencyManager.Object, mockDynamicTargetValueProvider.Object);
 
             mockTriggerExecutor
                 .Setup(m => m.ExecuteAsync(It.IsAny<QueueMessage>(), CancellationToken.None))
@@ -475,8 +484,11 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
             var queueProcessorFactory = new DefaultQueueProcessorFactory();
             var queueProcessor = QueueListenerFactory.CreateQueueProcessor(queue, null, _loggerFactory, queueProcessorFactory, queuesOptions, null);
             var mockConcurrencyManager = new Mock<ConcurrencyManager>(MockBehavior.Strict);
+            var dynamicTargetValueProviderMock = new Mock<IDynamicTargetValueProvider>(MockBehavior.Strict);
+
             QueueListener listener = new QueueListener(queue, null, mockTriggerExecutor.Object, new WebJobsExceptionHandler(null),
-                _loggerFactory, null, queuesOptions, queueProcessor, new FunctionDescriptor { Id = "TestFunction" }, mockConcurrencyManager.Object);
+                _loggerFactory, null, queuesOptions, queueProcessor, new FunctionDescriptor { Id = "TestFunction" },
+                mockConcurrencyManager.Object, dynamicTargetValueProviderMock.Object);
 
             listener.MinimumVisibilityRenewalInterval = TimeSpan.FromSeconds(1);
 

@@ -48,6 +48,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs.Triggers
         private readonly IHostSingletonManager _singletonManager;
         private readonly BlobTriggerSource _blobTriggerSource;
         private readonly ConcurrencyManager _concurrencyManager;
+        private readonly IDynamicTargetValueProvider _dynamicTargetValueProvider;
 
         public BlobTriggerBinding(ParameterInfo parameter,
             BlobServiceClient hostBlobServiceClient,
@@ -64,7 +65,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs.Triggers
             ISharedContextProvider sharedContextProvider,
             IHostSingletonManager singletonManager,
             ILoggerFactory loggerFactory,
-            ConcurrencyManager concurrencyManager)
+            ConcurrencyManager concurrencyManager,
+            IDynamicTargetValueProvider dynamicTargetValueProvider)
         {
             _parameter = parameter ?? throw new ArgumentNullException(nameof(parameter));
             _hostBlobServiceClient = hostBlobServiceClient ?? throw new ArgumentNullException(nameof(hostBlobServiceClient));
@@ -86,6 +88,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs.Triggers
             _loggerFactory = loggerFactory;
             _converter = CreateConverter(_dataBlobServiceClient);
             _bindingDataContract = CreateBindingDataContract(path);
+            _dynamicTargetValueProvider = dynamicTargetValueProvider ?? throw new ArgumentNullException(nameof(dynamicTargetValueProvider));
         }
 
         public Type TriggerValueType
@@ -194,7 +197,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs.Triggers
             var factory = new BlobListenerFactory(_hostIdProvider, _blobsOptions, _exceptionHandler,
                 _blobWrittenWatcherSetter, _blobTriggerQueueWriterFactory, _sharedContextProvider, _loggerFactory,
                 context.Descriptor, _hostBlobServiceClient, _hostQueueServiceClient, _dataBlobServiceClient, _dataQueueServiceClient,
-                container, _path, _blobTriggerSource, context.Executor, _singletonManager, _concurrencyManager);
+                container, _path, _blobTriggerSource, context.Executor, _singletonManager, _concurrencyManager, _dynamicTargetValueProvider);
 
             return factory.CreateAsync(context.CancellationToken);
         }

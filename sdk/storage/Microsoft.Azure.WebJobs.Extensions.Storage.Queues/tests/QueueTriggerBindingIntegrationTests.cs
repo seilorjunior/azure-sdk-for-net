@@ -38,10 +38,13 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
             IWebJobsExceptionHandler exceptionHandler = new WebJobsExceptionHandler(new Mock<IHost>().Object);
             var enqueueWatcher = new SharedQueueWatcher();
             var mockConcurrencyManager = new Mock<ConcurrencyManager>(MockBehavior.Strict);
+            var mockDynamicTargetValueProvider = new Mock<IDynamicTargetValueProvider>(MockBehavior.Strict);
             _binding = new QueueTriggerBinding("parameterName", queueServiceClient, queue, argumentBinding,
                 new QueuesOptions(), exceptionHandler,
                 enqueueWatcher,
-                new NullLoggerFactory(), null, new QueueCausalityManager(new NullLoggerFactory()), mockConcurrencyManager.Object);
+                new NullLoggerFactory(), null, new QueueCausalityManager(new NullLoggerFactory()),
+                mockConcurrencyManager.Object,
+                mockDynamicTargetValueProvider.Object);
         }
 
         [TearDown]

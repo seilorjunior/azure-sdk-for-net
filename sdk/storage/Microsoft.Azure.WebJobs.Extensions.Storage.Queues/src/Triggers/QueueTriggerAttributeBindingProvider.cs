@@ -31,6 +31,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues.Triggers
         private readonly IQueueProcessorFactory _queueProcessorFactory;
         private readonly QueueCausalityManager _queueCausalityManager;
         private readonly ConcurrencyManager _concurrencyManager;
+        private readonly IDynamicTargetValueProvider _dynamicTargetValueProvider;
 
         public QueueTriggerAttributeBindingProvider(INameResolver nameResolver,
             QueueServiceClientProvider queueServiceClientProvider,
@@ -40,7 +41,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues.Triggers
             ILoggerFactory loggerFactory,
             IQueueProcessorFactory queueProcessorFactory,
             QueueCausalityManager queueCausalityManager,
-            ConcurrencyManager concurrencyManager)
+            ConcurrencyManager concurrencyManager,
+            IDynamicTargetValueProvider dynamicTargetValueProvider)
         {
             _queueServiceClientProvider = queueServiceClientProvider ?? throw new ArgumentNullException(nameof(queueServiceClientProvider));
             _queueOptions = (queueOptions ?? throw new ArgumentNullException(nameof(queueOptions))).Value;
@@ -48,6 +50,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues.Triggers
             _messageEnqueuedWatcherSetter = messageEnqueuedWatcherSetter ?? throw new ArgumentNullException(nameof(messageEnqueuedWatcherSetter));
             _queueCausalityManager = queueCausalityManager ?? throw new ArgumentNullException(nameof(queueCausalityManager));
             _concurrencyManager = concurrencyManager ?? throw new ArgumentNullException(nameof(concurrencyManager));
+            _dynamicTargetValueProvider = dynamicTargetValueProvider ?? throw new ArgumentNullException(nameof(dynamicTargetValueProvider));
 
             _nameResolver = nameResolver;
             _loggerFactory = loggerFactory;
@@ -60,6 +63,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues.Triggers
                 new ConverterArgumentBindingProvider<byte[]>(new StorageQueueMessageToByteArrayConverter(), loggerFactory),
                 new ConverterArgumentBindingProvider<BinaryData>(new StorageQueueMessageToBinaryDataConverter(), loggerFactory),
                 new UserTypeArgumentBindingProvider(loggerFactory)); // Must come last, because it will attempt to bind all types.
+            _dynamicTargetValueProvider = dynamicTargetValueProvider;
         }
 
         public Task<ITriggerBinding> TryCreateAsync(TriggerBindingProviderContext context)
@@ -88,7 +92,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues.Triggers
 
             ITriggerBinding binding = new QueueTriggerBinding(parameter.Name, client, queue, argumentBinding,
                 _queueOptions, _exceptionHandler, _messageEnqueuedWatcherSetter,
-                _loggerFactory, _queueProcessorFactory, _queueCausalityManager, _concurrencyManager);
+                _loggerFactory, _queueProcessorFactory, _queueCausalityManager, _concurrencyManager, _dynamicTargetValueProvider);
+
             return Task.FromResult(binding);
         }
 

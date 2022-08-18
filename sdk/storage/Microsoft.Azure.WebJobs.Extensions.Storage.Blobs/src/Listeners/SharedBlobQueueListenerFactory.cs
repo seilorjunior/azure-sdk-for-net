@@ -35,6 +35,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs.Listeners
         private readonly ILoggerFactory _loggerFactory;
         private readonly BlobTriggerSource _blobTriggerSource;
         private readonly ConcurrencyManager _concurrencyManager;
+        private readonly IDynamicTargetValueProvider _dynamicTargetValueProvider;
 
         public SharedBlobQueueListenerFactory(
             QueueServiceClient hostQueueServiceClient,
@@ -46,7 +47,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs.Listeners
             IBlobWrittenWatcher blobWrittenWatcher,
             FunctionDescriptor functionDescriptor,
             BlobTriggerSource blobTriggerSource,
-            ConcurrencyManager concurrencyManager)
+            ConcurrencyManager concurrencyManager,
+            IDynamicTargetValueProvider dynamicTargetValueProvider)
         {
             _hostQueueServiceClient = hostQueueServiceClient ?? throw new ArgumentNullException(nameof(hostQueueServiceClient));
             _sharedQueueWatcher = sharedQueueWatcher ?? throw new ArgumentNullException(nameof(sharedQueueWatcher));
@@ -58,6 +60,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs.Listeners
             _functionDescriptor = functionDescriptor;
             _blobTriggerSource = blobTriggerSource;
             _concurrencyManager = concurrencyManager;
+            _dynamicTargetValueProvider = dynamicTargetValueProvider;
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope")]
@@ -79,7 +82,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs.Listeners
             var queueProcessor = new SharedBlobQueueProcessor(triggerExecutor, _hostBlobTriggerQueue, defaultPoisonQueue, _loggerFactory, queuesOptions);
             QueueListener.RegisterSharedWatcherWithQueueProcessor(queueProcessor, _sharedQueueWatcher);
             IListener listener = new QueueListener(_hostBlobTriggerQueue, defaultPoisonQueue, triggerExecutor, _exceptionHandler, _loggerFactory,
-                _sharedQueueWatcher, queuesOptions, queueProcessor, _functionDescriptor, _concurrencyManager, functionId: SharedBlobQueueListenerFunctionId);
+                _sharedQueueWatcher, queuesOptions, queueProcessor, _functionDescriptor, _concurrencyManager,_dynamicTargetValueProvider, functionId: SharedBlobQueueListenerFunctionId);
 
             return new SharedBlobQueueListener(listener, triggerExecutor);
         }

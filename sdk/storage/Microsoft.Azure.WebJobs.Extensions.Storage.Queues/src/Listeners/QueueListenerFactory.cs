@@ -34,6 +34,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues.Listeners
         private readonly IQueueProcessorFactory _queueProcessorFactory;
         private readonly QueueCausalityManager _queueCausalityManager;
         private readonly ConcurrencyManager _concurrencyManager;
+        private readonly IDynamicTargetValueProvider _dynamicTargetValueProvider;
 
         public QueueListenerFactory(
             QueueServiceClient queueServiceClient,
@@ -46,7 +47,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues.Listeners
             IQueueProcessorFactory queueProcessorFactory,
             QueueCausalityManager queueCausalityManager,
             FunctionDescriptor descriptor,
-            ConcurrencyManager concurrencyManager
+            ConcurrencyManager concurrencyManager,
+            IDynamicTargetValueProvider dynamicTargetValueProvider
             )
         {
             _queue = queue ?? throw new ArgumentNullException(nameof(queue));
@@ -61,6 +63,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues.Listeners
             _poisonQueue = CreatePoisonQueueReference(queueServiceClient, queue.Name);
             _loggerFactory = loggerFactory;
             _queueProcessorFactory = queueProcessorFactory;
+            _dynamicTargetValueProvider = dynamicTargetValueProvider ?? throw new ArgumentNullException(nameof(dynamicTargetValueProvider));
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope")]
@@ -70,7 +73,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues.Listeners
 
             var queueProcessor = CreateQueueProcessor(_queue, _poisonQueue, _loggerFactory, _queueProcessorFactory, _queueOptions, _messageEnqueuedWatcherSetter);
             IListener listener = new QueueListener(_queue, _poisonQueue, triggerExecutor, _exceptionHandler, _loggerFactory,
-                _messageEnqueuedWatcherSetter, _queueOptions, queueProcessor, _descriptor, _concurrencyManager);
+                _messageEnqueuedWatcherSetter, _queueOptions, queueProcessor, _descriptor, _concurrencyManager, _dynamicTargetValueProvider);
 
             return Task.FromResult(listener);
         }
