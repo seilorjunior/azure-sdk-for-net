@@ -150,11 +150,11 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Common.Listeners
                 {
                     return _queueOptions.BatchSize;
                 }
-                if (int.TryParse(Environment.GetEnvironmentVariable(Constants.TargetServiceBusMetric), out int parsedValue))
+                if (int.TryParse(Environment.GetEnvironmentVariable(Constants.TargetStorageQueueMetric), out int parsedValue))
                 {
                     return parsedValue;
                 }
-                return Constants.DefaultTargetServiceBusMetric;
+                return Constants.DefaultTargetStorageQueueMetric;
             });
             _dynamicTargetValueProvider = dynamicTargetValueProvider;
         }

@@ -8,7 +8,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Common
         public const string DateTimeFormatString = "yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'fffK";
         public const string TargetBasedScalingEnabled = "TARGET_BASED_SCALING_ENABLED";
         public const string DynamicConcurrencyEnabled = "DYNAMIC_CONCURRENCY_ENABLED";
-        public const string TargetServiceBusMetric = "TARGET_SERVICEBUS_METRIC";
-        public const int DefaultTargetServiceBusMetric = 16;
+        public const string TargetStorageQueueMetric = "TARGET_STORAGEQUEUE_METRIC";
+        public const int DefaultTargetStorageQueueMetric = 16;
     }
 }
