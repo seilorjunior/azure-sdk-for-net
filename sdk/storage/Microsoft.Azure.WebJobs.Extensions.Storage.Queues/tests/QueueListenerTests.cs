@@ -188,11 +188,11 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
             };
 
             var status = _listener.GetScaleVoteAsync(context);
-            Assert.AreEqual(ScaleVote.None, status);
+            Assert.AreEqual(0, status);
 
             // verify the non-generic implementation works properly
             status = ((ITargetScaleMonitor)_listener).GetScaleVoteAsync(context);
-            Assert.AreEqual(ScaleVote.None, status);
+            Assert.AreEqual(0, status);
         }
 
         [Test]
@@ -216,7 +216,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
 
             var status = await _listener.GetScaleVoteAsync(context);
 
-            Assert.AreEqual(ScaleVote.ScaleOut, status);
+            Assert.AreEqual(1, status);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -234,7 +234,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
             };
 
             status = await _listener.GetScaleVoteAsync(context2);
-            Assert.AreEqual(ScaleVote.ScaleOut, status);
+            Assert.AreEqual(1, status);
         }
 
         [Test]
@@ -257,7 +257,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
 
             var status = _listener.GetScaleVoteAsync(context);
 
-            Assert.AreEqual(ScaleVote.ScaleOut, status);
+            Assert.AreEqual(1, status);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -285,7 +285,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
 
             var status = _listener.GetScaleVoteAsync(context);
 
-            Assert.AreEqual(ScaleVote.ScaleOut, status);
+            Assert.AreEqual(1, status);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -313,7 +313,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
 
             var status = _listener.GetScaleVoteAsync(context);
 
-            Assert.AreEqual(ScaleVote.ScaleIn, status);
+            Assert.AreEqual(-1, status);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -341,7 +341,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
 
             var status = _listener.GetScaleVoteAsync(context);
 
-            Assert.AreEqual(ScaleVote.ScaleIn, status);
+            Assert.AreEqual(-1, status);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -369,7 +369,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
 
             var status = _listener.GetScaleVoteAsync(context);
 
-            Assert.AreEqual(ScaleVote.None, status);
+            Assert.AreEqual(0, status);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -397,7 +397,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
 
             var status = _listener.GetScaleVoteAsync(context);
 
-            Assert.AreEqual(ScaleVote.ScaleIn, status);
+            Assert.AreEqual(-1, status);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -420,7 +420,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
 
             var status = _listener.GetScaleVoteAsync(context);
 
-            Assert.AreEqual(ScaleVote.None, status);
+            Assert.AreEqual(0, status);
         }
 
         [Test]

@@ -14,4 +14,18 @@
     <ProjectReference Include="..\..\Microsoft.Azure.WebJobs.Extensions.Storage.Common\tests\Microsoft.Azure.WebJobs.Extensions.Storage.Common.Tests.csproj" />
     <ProjectReference Include="..\src\Microsoft.Azure.WebJobs.Extensions.Storage.Queues.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
 </Project>
