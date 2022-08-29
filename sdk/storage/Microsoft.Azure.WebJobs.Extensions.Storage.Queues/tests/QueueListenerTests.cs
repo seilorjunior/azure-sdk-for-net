@@ -196,7 +196,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
         }
 
         [Test]
-        public async void GetScaleStatus_MessagesPerWorkerThresholdExceeded_ReturnsVote_ScaleOut()
+        public async Task GetScaleStatus_MessagesPerWorkerThresholdExceeded_ReturnsVote_ScaleOut()
         {
             var context = new ScaleStatusContext<QueueTriggerMetrics>
             {
@@ -238,7 +238,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
         }
 
         [Test]
-        public void GetScaleStatus_QueueLengthIncreasing_ReturnsVote_ScaleOut()
+        public async Task GetScaleStatus_QueueLengthIncreasing_ReturnsVote_ScaleOut()
         {
             var context = new ScaleStatusContext<QueueTriggerMetrics>
             {
@@ -255,7 +255,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
                 new QueueTriggerMetrics { QueueLength = 150, QueueTime = TimeSpan.FromSeconds(1), Timestamp = timestamp.AddSeconds(15) }
             };
 
-            var status = _listener.GetScaleVoteAsync(context);
+            var status = await _listener.GetScaleVoteAsync(context);
 
             Assert.AreEqual(1, status);
 
@@ -266,7 +266,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
         }
 
         [Test]
-        public void GetScaleStatus_QueueTimeIncreasing_ReturnsVote_ScaleOut()
+        public async Task GetScaleStatus_QueueTimeIncreasing_ReturnsVote_ScaleOut()
         {
             var context = new ScaleStatusContext<QueueTriggerMetrics>
             {
@@ -283,7 +283,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
                 new QueueTriggerMetrics { QueueLength = 100, QueueTime = TimeSpan.FromSeconds(6), Timestamp = timestamp.AddSeconds(15) }
             };
 
-            var status = _listener.GetScaleVoteAsync(context);
+            var status = await _listener.GetScaleVoteAsync(context);
 
             Assert.AreEqual(1, status);
 
@@ -294,7 +294,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
         }
 
         [Test]
-        public void GetScaleStatus_QueueLengthDecreasing_ReturnsVote_ScaleIn()
+        public async Task GetScaleStatus_QueueLengthDecreasing_ReturnsVote_ScaleIn()
         {
             var context = new ScaleStatusContext<QueueTriggerMetrics>
             {
@@ -311,7 +311,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
                 new QueueTriggerMetrics { QueueLength = 10, QueueTime = TimeSpan.FromMilliseconds(400), Timestamp = timestamp.AddSeconds(15) }
             };
 
-            var status = _listener.GetScaleVoteAsync(context);
+            var status = await _listener.GetScaleVoteAsync(context);
 
             Assert.AreEqual(-1, status);
 
@@ -322,7 +322,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
         }
 
         [Test]
-        public void GetScaleStatus_QueueTimeDecreasing_ReturnsVote_ScaleIn()
+        public async Task GetScaleStatus_QueueTimeDecreasing_ReturnsVote_ScaleIn()
         {
             var context = new ScaleStatusContext<QueueTriggerMetrics>
             {
@@ -339,7 +339,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
                 new QueueTriggerMetrics { QueueLength = 100, QueueTime = TimeSpan.FromMilliseconds(100), Timestamp = timestamp.AddSeconds(15) }
             };
 
-            var status = _listener.GetScaleVoteAsync(context);
+            var status = await _listener.GetScaleVoteAsync(context);
 
             Assert.AreEqual(-1, status);
 
@@ -350,7 +350,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
         }
 
         [Test]
-        public void GetScaleStatus_QueueSteady_ReturnsVote_None()
+        public async Task GetScaleStatus_QueueSteady_ReturnsVote_None()
         {
             var context = new ScaleStatusContext<QueueTriggerMetrics>
             {
@@ -367,7 +367,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
                 new QueueTriggerMetrics { QueueLength = 1600, QueueTime = TimeSpan.FromSeconds(1), Timestamp = timestamp.AddSeconds(15) }
             };
 
-            var status = _listener.GetScaleVoteAsync(context);
+            var status = await _listener.GetScaleVoteAsync(context);
 
             Assert.AreEqual(0, status);
 
@@ -378,7 +378,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
         }
 
         [Test]
-        public void GetScaleStatus_QueueIdle_ReturnsVote_ScaleOut()
+        public async Task GetScaleStatus_QueueIdle_ReturnsVote_ScaleOut()
         {
             var context = new ScaleStatusContext<QueueTriggerMetrics>
             {
@@ -395,7 +395,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
                 new QueueTriggerMetrics { QueueLength = 0, QueueTime = TimeSpan.Zero, Timestamp = timestamp.AddSeconds(15) }
             };
 
-            var status = _listener.GetScaleVoteAsync(context);
+            var status = await _listener.GetScaleVoteAsync(context);
 
             Assert.AreEqual(-1, status);
 
@@ -406,7 +406,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
         }
 
         [Test]
-        public void GetScaleStatus_UnderSampleCountThreshold_ReturnsVote_None()
+        public async Task GetScaleStatus_UnderSampleCountThreshold_ReturnsVote_None()
         {
             var context = new ScaleStatusContext<QueueTriggerMetrics>
             {
@@ -418,7 +418,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Queues
                 new QueueTriggerMetrics { QueueLength = 10, QueueTime = TimeSpan.FromSeconds(1), Timestamp = DateTime.UtcNow }
             };
 
-            var status = _listener.GetScaleVoteAsync(context);
+            var status = await _listener.GetScaleVoteAsync(context);
 
             Assert.AreEqual(0, status);
         }
