@@ -29,6 +29,8 @@ namespace Microsoft.Azure.WebJobs.EventHubs.Listeners
         private readonly EventHubOptions _options;
 
         private Lazy<EventHubsScaleMonitor> _scaleMonitor;
+        private readonly ConcurrencyManager _concurrencyManager;
+        private readonly IDynamicTargetValueProvider _dynamicTargetValueProvider;
         private readonly ILoggerFactory _loggerFactory;
         private readonly ILogger _logger;
         private string _details;
@@ -41,7 +43,9 @@ namespace Microsoft.Azure.WebJobs.EventHubs.Listeners
             IEventHubConsumerClient consumerClient,
             BlobCheckpointStoreInternal checkpointStore,
             EventHubOptions options,
-            ILoggerFactory loggerFactory)
+            ILoggerFactory loggerFactory,
+            ConcurrencyManager concurrencyManager,
+            IDynamicTargetValueProvider dynamicTargetValueProvider)
         {
             _loggerFactory = loggerFactory;
             _executor = executor;
@@ -50,13 +54,15 @@ namespace Microsoft.Azure.WebJobs.EventHubs.Listeners
             _checkpointStore = checkpointStore;
             _options = options;
             _logger = _loggerFactory.CreateLogger<EventHubListener>();
+            _concurrencyManager = concurrencyManager;
+            _dynamicTargetValueProvider = dynamicTargetValueProvider;
 
             _scaleMonitor = new Lazy<EventHubsScaleMonitor>(
                 () => new EventHubsScaleMonitor(
                     functionId,
                     consumerClient,
                     checkpointStore,
-                    _loggerFactory.CreateLogger<EventHubsScaleMonitor>()));
+                    _loggerFactory.CreateLogger<EventHubsScaleMonitor>(), _concurrencyManager, _options, _dynamicTargetValueProvider));
 
             _details = $"'namespace='{eventProcessorHost?.FullyQualifiedNamespace}', eventHub='{eventProcessorHost?.EventHubName}', " +
                 $"consumerGroup='{eventProcessorHost?.ConsumerGroup}', functionId='{functionId}', singleDispatch='{singleDispatch}'";

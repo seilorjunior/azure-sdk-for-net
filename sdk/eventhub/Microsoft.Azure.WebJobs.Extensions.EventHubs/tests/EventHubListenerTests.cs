@@ -210,11 +210,14 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
                 "Endpoint=sb://test.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=abc123=",
                 eventHubName,
                 new EventProcessorOptions(),
-                3,null);
+                3, null);
 
             var consumerClientMock = new Mock<IEventHubConsumerClient>();
             consumerClientMock.SetupGet(c => c.ConsumerGroup).Returns(consumerGroup);
             consumerClientMock.SetupGet(c => c.EventHubName).Returns(eventHubName);
+
+            var concurrencyManager = new Mock<ConcurrencyManager>();
+            var iDynamicTargetValueProvider = new Mock<IDynamicTargetValueProvider>();
 
             var listener = new EventHubListener(
                                     functionId,
@@ -224,7 +227,9 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
                                     consumerClientMock.Object,
                                     Mock.Of<BlobCheckpointStoreInternal>(),
                                     new EventHubOptions(),
-                                    Mock.Of<LoggerFactory>());
+                                    Mock.Of<LoggerFactory>(),
+                                    concurrencyManager.Object,
+                                    iDynamicTargetValueProvider.Object);
 
             IScaleMonitor scaleMonitor = listener.GetMonitor();
 
@@ -246,12 +251,15 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
                 "Endpoint=sb://test.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=abc123=",
                 eventHubName,
                 new EventProcessorOptions(),
-                3,null);
+                3, null);
             host.Setup(h => h.StopProcessingAsync(CancellationToken.None)).Returns(Task.CompletedTask);
 
             var consumerClientMock = new Mock<IEventHubConsumerClient>();
             consumerClientMock.SetupGet(c => c.ConsumerGroup).Returns(consumerGroup);
             consumerClientMock.SetupGet(c => c.EventHubName).Returns(eventHubName);
+
+            var concurrencyManager = new Mock<ConcurrencyManager>();
+            var iDynamicTargetValueProvider = new Mock<IDynamicTargetValueProvider>();
 
             var listener = new EventHubListener(
                 functionId,
@@ -261,7 +269,9 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
                 consumerClientMock.Object,
                 Mock.Of<BlobCheckpointStoreInternal>(),
                 new EventHubOptions(),
-                Mock.Of<LoggerFactory>());
+                Mock.Of<LoggerFactory>(),
+                concurrencyManager.Object,
+                iDynamicTargetValueProvider.Object);
 
             (listener as IListener).Dispose();
             host.Verify(h => h.StopProcessingAsync(CancellationToken.None), Times.Once);

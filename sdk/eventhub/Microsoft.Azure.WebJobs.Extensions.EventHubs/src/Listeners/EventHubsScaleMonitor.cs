@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Azure.WebJobs.EventHubs.Listeners
 {
-    internal class EventHubsScaleMonitor : IScaleMonitor<EventHubsTriggerMetrics>
+    internal class EventHubsScaleMonitor : ITargetScaleMonitor<EventHubsTriggerMetrics>
     {
         private const int PartitionLogIntervalInMinutes = 5;
 
@@ -21,15 +21,18 @@ namespace Microsoft.Azure.WebJobs.EventHubs.Listeners
         private readonly IEventHubConsumerClient _client;
         private readonly ILogger _logger;
         private readonly BlobCheckpointStoreInternal _checkpointStore;
+        private readonly ConcurrencyManager _concurrencyManager;
+        private readonly EventHubOptions _eventHubOptions;
+        private readonly IDynamicTargetValueProvider _dynamicTargetValueProvider;
+
+        private readonly Lazy<bool> _targetBasedScalingEnabled;
+        private readonly Lazy<int> _staticTargetValue;
 
         private DateTime _nextPartitionLogTime;
         private DateTime _nextPartitionWarningTime;
 
-        public EventHubsScaleMonitor(
-            string functionId,
-            IEventHubConsumerClient client,
-            BlobCheckpointStoreInternal checkpointStore,
-            ILogger logger)
+        public EventHubsScaleMonitor(string functionId, IEventHubConsumerClient client, BlobCheckpointStoreInternal checkpointStore,
+            ILogger logger, ConcurrencyManager concurrencyManager, EventHubOptions eventHubOptions, IDynamicTargetValueProvider dynamicTargetValueProvider)
         {
             _functionId = functionId;
             _logger = logger;
@@ -37,8 +40,29 @@ namespace Microsoft.Azure.WebJobs.EventHubs.Listeners
             _nextPartitionLogTime = DateTime.UtcNow;
             _nextPartitionWarningTime = DateTime.UtcNow;
             _client = client;
+            _concurrencyManager = concurrencyManager;
+            _dynamicTargetValueProvider = dynamicTargetValueProvider;
+            _eventHubOptions = eventHubOptions;
 
             Descriptor = new ScaleMonitorDescriptor($"{_functionId}-EventHubTrigger-{_client.EventHubName}-{_client.ConsumerGroup}".ToLowerInvariant());
+
+            _targetBasedScalingEnabled = new Lazy<bool>(() =>
+            {
+                ;
+                return Environment.GetEnvironmentVariable(Constants.TargetBasedScalingEnabled) == "1";
+            });
+            _staticTargetValue = new Lazy<int>(() =>
+            {
+                if (_eventHubOptions.MaxEventBatchSize > 0)
+                {
+                    return _eventHubOptions.MaxEventBatchSize;
+                }
+                if (int.TryParse(Environment.GetEnvironmentVariable(Constants.TargetEventHubsMetric), out int parsedValue))
+                {
+                    return parsedValue;
+                }
+                return Constants.DefaultTargetEventHubsMetric;
+            });
         }
 
         public ScaleMonitorDescriptor Descriptor { get; }
@@ -210,20 +234,48 @@ namespace Microsoft.Azure.WebJobs.EventHubs.Listeners
         /// </summary>
         ScaleStatus IScaleMonitor.GetScaleStatus(ScaleStatusContext context)
         {
-            return GetScaleStatusCore(context.WorkerCount, context.Metrics?.Cast<EventHubsTriggerMetrics>().ToArray());
+            throw new NotImplementedException();
         }
 
-        public ScaleStatus GetScaleStatus(ScaleStatusContext<EventHubsTriggerMetrics> context)
+        public async Task<int> GetScaleVoteAsync(ScaleStatusContext context)
         {
-            return GetScaleStatusCore(context.WorkerCount, context.Metrics?.ToArray());
+            return await GetScaleVoteCoreAsync(context.WorkerCount, context.Metrics?.Cast<EventHubsTriggerMetrics>().ToArray()).ConfigureAwait(false);
         }
 
-        private ScaleStatus GetScaleStatusCore(int workerCount, EventHubsTriggerMetrics[] metrics)
+        public async Task<int> GetScaleVoteAsync(ScaleStatusContext<EventHubsTriggerMetrics> context)
         {
-            ScaleStatus status = new ScaleStatus
+            return await GetScaleVoteCoreAsync(context.WorkerCount, context.Metrics?.ToArray()).ConfigureAwait(false);
+        }
+
+        private async Task<int> GetScaleVoteCoreAsync(int workerCount, EventHubsTriggerMetrics[] metrics)
+        {
+            if (_targetBasedScalingEnabled.Value)
             {
-                Vote = ScaleVote.None
-            };
+                int targetValue = await _dynamicTargetValueProvider.GetDynamicTargetValue(_functionId, _concurrencyManager.Enabled).ConfigureAwait(false);
+                if (targetValue <= 0)
+                {
+                    // Fallback to default value
+                    targetValue = _staticTargetValue.Value;
+                }
+                return GetTargetScaleVote(targetValue, metrics);
+            }
+            else
+            {
+                return GetIncrementalScaleVote(workerCount, metrics);
+            }
+        }
+
+        private static int GetTargetScaleVote(int targetValue, EventHubsTriggerMetrics[] metrics)
+        {
+            return (int)Math.Ceiling(metrics.Last().PartitionCount / (decimal)targetValue);
+        }
+        private int GetIncrementalScaleVote(int workerCount, EventHubsTriggerMetrics[] metrics)
+        {
+            //ScaleStatus status = new ScaleStatus
+            //{
+            //    Vote = ScaleVote.None
+            //};
+            int status = 0;
 
             const int NumberOfSamplesToConsider = 5;
 
@@ -238,7 +290,7 @@ namespace Microsoft.Azure.WebJobs.EventHubs.Listeners
             int partitionCount = metrics.Last().PartitionCount;
             if (partitionCount > 0 && partitionCount < workerCount)
             {
-                status.Vote = ScaleVote.ScaleIn;
+                status = -1;
                 _logger.LogInformation($"WorkerCount ({workerCount}) > PartitionCount ({partitionCount}).");
                 _logger.LogInformation($"Number of instances ({workerCount}) is too high relative to number " +
                                        $"of partitions ({partitionCount}) for EventHubs entity ({_client.EventHubName}, {_client.ConsumerGroup}).");
@@ -255,7 +307,7 @@ namespace Microsoft.Azure.WebJobs.EventHubs.Listeners
             long latestEventCount = metrics.Last().EventCount;
             if (latestEventCount > workerCount * 1000)
             {
-                status.Vote = ScaleVote.ScaleOut;
+                status = 1;
                 _logger.LogInformation($"EventCount ({latestEventCount}) > WorkerCount ({workerCount}) * 1,000.");
                 _logger.LogInformation($"Event count ({latestEventCount}) for EventHubs entity ({_client.EventHubName}, {_client.ConsumerGroup}) " +
                                        $"is too high relative to the number of instances ({workerCount}).");
@@ -266,7 +318,7 @@ namespace Microsoft.Azure.WebJobs.EventHubs.Listeners
             bool isIdle = metrics.All(m => m.EventCount == 0);
             if (isIdle)
             {
-                status.Vote = ScaleVote.ScaleIn;
+                status = -1;
                 _logger.LogInformation($"'{_client.EventHubName}' is idle.");
                 return status;
             }
@@ -282,7 +334,7 @@ namespace Microsoft.Azure.WebJobs.EventHubs.Listeners
                     (prev, next) => prev.EventCount < next.EventCount);
                 if (eventCountIncreasing)
                 {
-                    status.Vote = ScaleVote.ScaleOut;
+                    status = 1;
                     _logger.LogInformation($"Event count is increasing for '{_client.EventHubName}'.");
                     return status;
                 }
@@ -295,7 +347,7 @@ namespace Microsoft.Azure.WebJobs.EventHubs.Listeners
                     (prev, next) => prev.EventCount > next.EventCount);
             if (eventCountDecreasing)
             {
-                status.Vote = ScaleVote.ScaleIn;
+                status = -1;
                 _logger.LogInformation($"Event count is decreasing for '{_client.EventHubName}'.");
                 return status;
             }
