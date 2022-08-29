@@ -9,6 +9,7 @@ using Azure.Messaging.EventHubs.Primitives;
 using Microsoft.Azure.WebJobs.EventHubs.Listeners;
 using Microsoft.Azure.WebJobs.Host.Bindings;
 using Microsoft.Azure.WebJobs.Host.Listeners;
+using Microsoft.Azure.WebJobs.Host.Scale;
 using Microsoft.Azure.WebJobs.Host.Triggers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -22,16 +23,23 @@ namespace Microsoft.Azure.WebJobs.EventHubs
         private readonly EventHubClientFactory _clientFactory;
         private readonly IConverterManager _converterManager;
 
+        private readonly ConcurrencyManager _concurrencyManager;
+        private readonly IDynamicTargetValueProvider _dynamicTargetValueProvider;
+
         public EventHubTriggerAttributeBindingProvider(
             IConverterManager converterManager,
             IOptions<EventHubOptions> options,
             ILoggerFactory loggerFactory,
-            EventHubClientFactory clientFactory)
+            EventHubClientFactory clientFactory,
+            ConcurrencyManager concurrencyManager,
+            IDynamicTargetValueProvider dynamicTargetValueProvider)
         {
             _converterManager = converterManager;
             _options = options;
             _clientFactory = clientFactory;
             _loggerFactory = loggerFactory;
+            _concurrencyManager = concurrencyManager;
+            _dynamicTargetValueProvider = dynamicTargetValueProvider;
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope")]
@@ -67,7 +75,9 @@ namespace Microsoft.Azure.WebJobs.EventHubs
                                                 _clientFactory.GetEventHubConsumerClient(attribute.EventHubName, attribute.Connection, attribute.ConsumerGroup),
                                                 checkpointStore,
                                                 options,
-                                                _loggerFactory);
+                                                _loggerFactory,
+                                                _concurrencyManager,
+                                                _dynamicTargetValueProvider);
                  return Task.FromResult(listener);
              };
 #pragma warning disable 618

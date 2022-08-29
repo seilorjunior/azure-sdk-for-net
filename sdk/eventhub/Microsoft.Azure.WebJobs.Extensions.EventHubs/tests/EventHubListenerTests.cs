@@ -216,6 +216,9 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
             consumerClientMock.SetupGet(c => c.ConsumerGroup).Returns(consumerGroup);
             consumerClientMock.SetupGet(c => c.EventHubName).Returns(eventHubName);
 
+            var concurrencyManager = new Mock<ConcurrencyManager>();
+            var iDynamicTargetValueProvider = new Mock<IDynamicTargetValueProvider>();
+
             var listener = new EventHubListener(
                                     functionId,
                                     Mock.Of<ITriggeredFunctionExecutor>(),
@@ -224,7 +227,9 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
                                     consumerClientMock.Object,
                                     Mock.Of<BlobCheckpointStoreInternal>(),
                                     new EventHubOptions(),
-                                    Mock.Of<LoggerFactory>());
+                                    Mock.Of<LoggerFactory>(),
+                                    concurrencyManager.Object,
+                                    iDynamicTargetValueProvider.Object);
 
             IScaleMonitor scaleMonitor = listener.GetMonitor();
 
@@ -253,6 +258,9 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
             consumerClientMock.SetupGet(c => c.ConsumerGroup).Returns(consumerGroup);
             consumerClientMock.SetupGet(c => c.EventHubName).Returns(eventHubName);
 
+            var concurrencyManager = new Mock<ConcurrencyManager>();
+            var iDynamicTargetValueProvider = new Mock<IDynamicTargetValueProvider>();
+
             var listener = new EventHubListener(
                 functionId,
                 Mock.Of<ITriggeredFunctionExecutor>(),
@@ -261,7 +269,9 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
                 consumerClientMock.Object,
                 Mock.Of<BlobCheckpointStoreInternal>(),
                 new EventHubOptions(),
-                Mock.Of<LoggerFactory>());
+                Mock.Of<LoggerFactory>(),
+                concurrencyManager.Object,
+                iDynamicTargetValueProvider.Object);
 
             (listener as IListener).Dispose();
             host.Verify(h => h.StopProcessingAsync(CancellationToken.None), Times.Once);

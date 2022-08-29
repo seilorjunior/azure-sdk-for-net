@@ -12,6 +12,7 @@ using Microsoft.Azure.WebJobs.EventHubs.Processor;
 using Microsoft.Azure.WebJobs.Host.Bindings;
 using Microsoft.Azure.WebJobs.Host.Config;
 using Microsoft.Azure.WebJobs.Host.Configuration;
+using Microsoft.Azure.WebJobs.Host.Scale;
 using Microsoft.Azure.WebJobs.Logging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -28,19 +29,25 @@ namespace Microsoft.Azure.WebJobs.EventHubs
         private readonly IConverterManager _converterManager;
         private readonly IWebJobsExtensionConfiguration<EventHubExtensionConfigProvider> _configuration;
         private readonly EventHubClientFactory _clientFactory;
+        private readonly ConcurrencyManager _concurrencyManager;
+        private readonly IDynamicTargetValueProvider _dynamicTargetValueProvider;
 
         public EventHubExtensionConfigProvider(
             IOptions<EventHubOptions> options,
             ILoggerFactory loggerFactory,
             IConverterManager converterManager,
             IWebJobsExtensionConfiguration<EventHubExtensionConfigProvider> configuration,
-            EventHubClientFactory clientFactory)
+            EventHubClientFactory clientFactory,
+            ConcurrencyManager concurrencyManager,
+            IDynamicTargetValueProvider dynamicTargetValueProvider)
         {
             _options = options;
             _loggerFactory = loggerFactory;
             _converterManager = converterManager;
             _configuration = configuration;
             _clientFactory = clientFactory;
+            _concurrencyManager = concurrencyManager;
+            _dynamicTargetValueProvider = dynamicTargetValueProvider;
         }
 
         internal Action<ExceptionReceivedEventArgs> ExceptionHandler { get; set; }
@@ -70,7 +77,7 @@ namespace Microsoft.Azure.WebJobs.EventHubs
                 .AddOpenConverter<OpenType.Poco, EventData>(ConvertPocoToEventData);
 
             // register our trigger binding provider
-            var triggerBindingProvider = new EventHubTriggerAttributeBindingProvider(_converterManager, _options, _loggerFactory, _clientFactory);
+            var triggerBindingProvider = new EventHubTriggerAttributeBindingProvider(_converterManager, _options, _loggerFactory, _clientFactory,_concurrencyManager,_dynamicTargetValueProvider);
             context.AddBindingRule<EventHubTriggerAttribute>()
                 .BindToTrigger(triggerBindingProvider);
 
