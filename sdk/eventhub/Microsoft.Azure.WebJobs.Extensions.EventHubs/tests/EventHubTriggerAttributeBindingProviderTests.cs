@@ -9,7 +9,6 @@ using Azure.Core;
 using Azure.Messaging.EventHubs;
 using Azure.Messaging.EventHubs.Primitives;
 using Azure.Storage.Blobs;
-using Microsoft.Azure.Management.EventHub.Models;
 using Microsoft.Azure.WebJobs.EventHubs;
 using Microsoft.Azure.WebJobs.EventHubs.Listeners;
 using Microsoft.Azure.WebJobs.EventHubs.Processor;
@@ -17,7 +16,6 @@ using Microsoft.Azure.WebJobs.EventHubs.Tests;
 using Microsoft.Azure.WebJobs.Host.Executors;
 using Microsoft.Azure.WebJobs.Host.Listeners;
 using Microsoft.Azure.WebJobs.Host.Protocols;
-using Microsoft.Azure.WebJobs.Host.Scale;
 using Microsoft.Azure.WebJobs.Host.Triggers;
 using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Configuration;
@@ -48,8 +46,6 @@ namespace Microsoft.Azure.WebJobs.Extensions.EventHubs.UnitTests
             blobServiceClient.Setup(client => client.GetBlobContainerClient(It.IsAny<string>()))
                 .Returns(Mock.Of<BlobContainerClient>());
             var componentFactory = new Mock<AzureComponentFactory>();
-            var concurrencyManager = new Mock<ConcurrencyManager>();
-            var iDynamicTargetValueProvider = new Mock<IDynamicTargetValueProvider>();
             componentFactory.Setup(
                 factory => factory.CreateClient(
                     typeof(BlobServiceClient),
@@ -58,7 +54,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.EventHubs.UnitTests
                     It.IsAny<BlobClientOptions>())).Returns(blobServiceClient.Object);
 
             var factory = ConfigurationUtilities.CreateFactory(configuration, options, componentFactory.Object);
-            _provider = new EventHubTriggerAttributeBindingProvider(convertManager.Object, Options.Create(options), NullLoggerFactory.Instance, factory, concurrencyManager.Object, iDynamicTargetValueProvider.Object);
+            _provider = new EventHubTriggerAttributeBindingProvider(convertManager.Object, Options.Create(options), NullLoggerFactory.Instance, factory);
         }
 
         [Test]

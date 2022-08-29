@@ -32,9 +32,6 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
         private LoggerFactory _loggerFactory;
         private Mock<IEventHubConsumerClient> _consumerClientMock;
 
-        private Mock<ConcurrencyManager> _concurrencyManager;
-        private Mock<EventHubOptions> _eventHubOptions;
-        private Mock<IDynamicTargetValueProvider> _iDynamicTargetValueProvider;
         private IEnumerable<PartitionProperties> _partitions;
         private IEnumerable<EventProcessorCheckpoint> _checkpoints;
 
@@ -54,11 +51,7 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
             _consumerClientMock.Setup(client => client.GetPartitionPropertiesAsync(IsAny<string>()))
                 .Returns((string id) => Task.FromResult(_partitions.SingleOrDefault(p => p.Id == id)));
 
-            _mockCheckpointStore = new Mock<BlobCheckpointStoreInternal>(MockBehavior.Strict);
-
-            _concurrencyManager = new Mock<ConcurrencyManager>();
-            _eventHubOptions = new Mock<EventHubOptions>();
-            _iDynamicTargetValueProvider = new Mock<IDynamicTargetValueProvider>();
+            this._mockCheckpointStore = new Mock<BlobCheckpointStoreInternal>(MockBehavior.Strict);
 
             _mockCheckpointStore.Setup(s => s.GetCheckpointAsync(_namespace, _eventHubName, _consumerGroup, It.IsAny<string>(), default))
                 .Returns<string, string, string, string, CancellationToken>((ns, hub, cg, partitionId, ct) => Task.FromResult(_checkpoints.SingleOrDefault(cp => cp.PartitionId == partitionId)));
@@ -67,10 +60,7 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
                                     _functionId,
                                     _consumerClientMock.Object,
                                     _mockCheckpointStore.Object,
-                                    _loggerFactory.CreateLogger(LogCategories.CreateTriggerCategory("EventHub")),
-                                    _concurrencyManager.Object,
-                                    _eventHubOptions.Object,
-                                    _iDynamicTargetValueProvider.Object);
+                                    _loggerFactory.CreateLogger(LogCategories.CreateTriggerCategory("EventHub")));
         }
 
         [Test]
@@ -208,23 +198,23 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
         }
 
         [Test]
-        public async Task GetScaleStatus_NoMetrics_ReturnsVote_None()
+        public void GetScaleStatus_NoMetrics_ReturnsVote_None()
         {
             var context = new ScaleStatusContext<EventHubsTriggerMetrics>
             {
                 WorkerCount = 1
             };
 
-            var status = await _scaleMonitor.GetScaleVoteAsync(context);
-            Assert.AreEqual(0, status);
+            var status = _scaleMonitor.GetScaleStatus(context);
+            Assert.AreEqual(ScaleVote.None, status.Vote);
 
             // verify the non-generic implementation works properly
-            status = await ((ITargetScaleMonitor)_scaleMonitor).GetScaleVoteAsync(context);
-            Assert.AreEqual(0, status);
+            status = ((IScaleMonitor)_scaleMonitor).GetScaleStatus(context);
+            Assert.AreEqual(ScaleVote.None, status.Vote);
         }
 
         [Test]
-        public async Task GetScaleStatus_InstancesPerPartitionThresholdExceeded_ReturnsVote_ScaleIn()
+        public void GetScaleStatus_InstancesPerPartitionThresholdExceeded_ReturnsVote_ScaleIn()
         {
             var context = new ScaleStatusContext<EventHubsTriggerMetrics>
             {
@@ -242,8 +232,8 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
             };
             context.Metrics = eventHubTriggerMetrics;
 
-            var status = await _scaleMonitor.GetScaleVoteAsync(context);
-            Assert.AreEqual(-1, status);
+            var status = _scaleMonitor.GetScaleStatus(context);
+            Assert.AreEqual(ScaleVote.ScaleIn, status.Vote);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -259,12 +249,12 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
                 WorkerCount = 1,
                 Metrics = eventHubTriggerMetrics
             };
-            status = await ((ITargetScaleMonitor)_scaleMonitor).GetScaleVoteAsync(context2);
-            Assert.AreEqual(1, status);
+            status = ((IScaleMonitor)_scaleMonitor).GetScaleStatus(context2);
+            Assert.AreEqual(ScaleVote.ScaleOut, status.Vote);
         }
 
         [Test]
-        public async Task GetScaleStatus_EventsPerWorkerThresholdExceeded_ReturnsVote_ScaleOut()
+        public void GetScaleStatus_EventsPerWorkerThresholdExceeded_ReturnsVote_ScaleOut()
         {
             var context = new ScaleStatusContext<EventHubsTriggerMetrics>
             {
@@ -282,8 +272,8 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
             };
             context.Metrics = eventHubTriggerMetrics;
 
-            var status = await _scaleMonitor.GetScaleVoteAsync(context);
-            Assert.AreEqual(1, status);
+            var status = _scaleMonitor.GetScaleStatus(context);
+            Assert.AreEqual(ScaleVote.ScaleOut, status.Vote);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -300,12 +290,12 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
                 WorkerCount = 1,
                 Metrics = eventHubTriggerMetrics
             };
-            status = await ((ITargetScaleMonitor)_scaleMonitor).GetScaleVoteAsync(context2);
-            Assert.AreEqual(1, status);
+            status = ((IScaleMonitor)_scaleMonitor).GetScaleStatus(context2);
+            Assert.AreEqual(ScaleVote.ScaleOut, status.Vote);
         }
 
         [Test]
-        public async Task GetScaleStatus_EventHubIdle_ReturnsVote_ScaleIn()
+        public void GetScaleStatus_EventHubIdle_ReturnsVote_ScaleIn()
         {
             var context = new ScaleStatusContext<EventHubsTriggerMetrics>
             {
@@ -322,8 +312,8 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
                 new EventHubsTriggerMetrics { EventCount = 0, PartitionCount = 0, Timestamp = timestamp.AddSeconds(15) },
             };
 
-            var status = await _scaleMonitor.GetScaleVoteAsync(context);
-            Assert.AreEqual(-1, status);
+            var status = _scaleMonitor.GetScaleStatus(context);
+            Assert.AreEqual(ScaleVote.ScaleIn, status.Vote);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -332,7 +322,7 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
         }
 
         [Test]
-        public async Task GetScaleStatus_EventCountIncreasing_ReturnsVote_ScaleOut()
+        public void GetScaleStatus_EventCountIncreasing_ReturnsVote_ScaleOut()
         {
             var context = new ScaleStatusContext<EventHubsTriggerMetrics>
             {
@@ -349,8 +339,8 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
                 new EventHubsTriggerMetrics { EventCount = 150, PartitionCount = 0, Timestamp = timestamp.AddSeconds(15) },
             };
 
-            var status = await _scaleMonitor.GetScaleVoteAsync(context);
-            Assert.AreEqual(1, status);
+            var status = _scaleMonitor.GetScaleStatus(context);
+            Assert.AreEqual(ScaleVote.ScaleOut, status.Vote);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -359,7 +349,7 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
         }
 
         [Test]
-        public async Task GetScaleStatus_EventCountDecreasing_ReturnsVote_ScaleOut()
+        public void GetScaleStatus_EventCountDecreasing_ReturnsVote_ScaleOut()
         {
             var context = new ScaleStatusContext<EventHubsTriggerMetrics>
             {
@@ -376,8 +366,8 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
                 new EventHubsTriggerMetrics { EventCount = 10, PartitionCount = 0, Timestamp = timestamp.AddSeconds(15) },
             };
 
-            var status = await _scaleMonitor.GetScaleVoteAsync(context);
-            Assert.AreEqual(-1, status);
+            var status = _scaleMonitor.GetScaleStatus(context);
+            Assert.AreEqual(ScaleVote.ScaleIn, status.Vote);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
@@ -386,7 +376,7 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
         }
 
         [Test]
-        public async Task GetScaleStatus_EventHubSteady_ReturnsVote_ScaleIn()
+        public void GetScaleStatus_EventHubSteady_ReturnsVote_ScaleIn()
         {
             var context = new ScaleStatusContext<EventHubsTriggerMetrics>
             {
@@ -403,12 +393,11 @@ namespace Microsoft.Azure.WebJobs.EventHubs.UnitTests
                 new EventHubsTriggerMetrics { EventCount = 1600, PartitionCount = 0, Timestamp = timestamp.AddSeconds(15) },
             };
 
-            var status = await _scaleMonitor.GetScaleVoteAsync(context);
-            Assert.AreEqual(0, status);
+            var status = _scaleMonitor.GetScaleStatus(context);
+            Assert.AreEqual(ScaleVote.None, status.Vote);
 
             var logs = _loggerProvider.GetAllLogMessages().ToArray();
             var log = logs[0];
-
             Assert.AreEqual(LogLevel.Information, log.Level);
             Assert.AreEqual($"EventHubs entity '{_eventHubName}' is steady.", log.FormattedMessage);
         }
