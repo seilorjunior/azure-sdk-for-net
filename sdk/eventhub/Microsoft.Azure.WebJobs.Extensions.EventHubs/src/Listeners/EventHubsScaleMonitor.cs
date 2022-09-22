@@ -57,7 +57,7 @@ namespace Microsoft.Azure.WebJobs.EventHubs.Listeners
                 {
                     return _eventHubOptions.MaxEventBatchSize;
                 }
-                if (int.TryParse(Environment.GetEnvironmentVariable(Constants.TargetEventHubsMetric), out int parsedValue))
+                if (int.TryParse(Environment.GetEnvironmentVariable(Constants.TargetEventHubMetric), out int parsedValue))
                 {
                     return parsedValue;
                 }
@@ -267,7 +267,14 @@ namespace Microsoft.Azure.WebJobs.EventHubs.Listeners
 
         private static int GetTargetScaleVote(int targetValue, EventHubsTriggerMetrics[] metrics)
         {
-            return (int)Math.Ceiling(metrics.Last().PartitionCount / (decimal)targetValue);
+            int result = (int)Math.Ceiling(metrics.Last().EventCount / (decimal)targetValue);
+
+            if (result >= metrics.Last().PartitionCount)
+            {
+                return metrics.Last().PartitionCount;
+            }
+
+            return result;
         }
         private int GetIncrementalScaleVote(int workerCount, EventHubsTriggerMetrics[] metrics)
         {

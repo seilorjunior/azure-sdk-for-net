@@ -11,7 +11,7 @@ namespace Microsoft.Azure.WebJobs.EventHubs
         //public const string AzureWebsiteSku = "WEBSITE_SKU";
         public const string TargetBasedScalingEnabled = "TARGET_BASED_SCALING_ENABLED";
         public const string DynamicConcurrencyEnabled = "DYNAMIC_CONCURRENCY_ENABLED";
-        public const string TargetEventHubsMetric = "TARGET_EVENTHUBS_METRIC";
-        public const int DefaultTargetEventHubsMetric = 16;//needs to check
+        public const string TargetEventHubMetric = "TARGET_EVENTHUB_METRIC";
+        public const int DefaultTargetEventHubsMetric = 64;//needs to check
     }
 }
